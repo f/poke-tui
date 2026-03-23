@@ -6,7 +6,7 @@ import { homedir } from "node:os";
 import { createInterface } from "node:readline";
 
 const CONFIG_DIR = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-const PUI_CONFIG = join(CONFIG_DIR, "pui", "config.json");
+const PUI_CONFIG = join(CONFIG_DIR, "poke-tui", "config.json");
 
 function loadConfig() {
   try {
@@ -17,7 +17,7 @@ function loadConfig() {
 }
 
 function saveConfig(config) {
-  mkdirSync(join(CONFIG_DIR, "pui"), { recursive: true });
+  mkdirSync(join(CONFIG_DIR, "poke-tui"), { recursive: true });
   writeFileSync(PUI_CONFIG, JSON.stringify(config, null, 2));
 }
 

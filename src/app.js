@@ -11,8 +11,8 @@ function resolveToken() {
   const configDir = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
 
   try {
-    const puiConfig = JSON.parse(readFileSync(join(configDir, "pui", "config.json"), "utf-8"));
-    if (puiConfig.apiKey) return puiConfig.apiKey;
+    const cfg = JSON.parse(readFileSync(join(configDir, "poke-tui", "config.json"), "utf-8"));
+    if (cfg.apiKey) return cfg.apiKey;
   } catch {}
 
   return null;
@@ -21,7 +21,7 @@ function resolveToken() {
 const POKE_API_KEY = resolveToken();
 
 if (!POKE_API_KEY) {
-  console.error("No credentials found. Run: npx pui");
+  console.error("No credentials found. Run: npx poke-tui");
   process.exit(1);
 }
 

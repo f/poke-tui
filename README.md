@@ -1,4 +1,4 @@
-# 🌴 pui
+# 🌴 poke-tui
 
 A terminal UI for [Poke](https://poke.com) — chat with your AI assistant without leaving the terminal.
 
@@ -7,16 +7,16 @@ Built with [Ink](https://github.com/vadimdemedes/ink) (React for CLIs) and the [
 ## Quick start
 
 ```bash
-npx pui
+npx poke-tui
 ```
 
 On first run, you'll be guided through a one-time setup to paste your API key.
 
 ## How it works
 
-**pui** connects to your Poke agent through the Poke API. You type messages in the terminal, and Poke responds inline — no need to switch to iMessage, Telegram, or SMS.
+**poke-tui** connects to your Poke agent through the Poke API. You type messages in the terminal, and Poke responds inline — no need to switch to iMessage, Telegram, or SMS.
 
-Behind the scenes, pui runs a local [MCP](https://modelcontextprotocol.io) server and tunnels it to Poke's cloud using `PokeTunnel`. This gives the agent a `reply_to_terminal` tool it can call to send responses directly back to your terminal.
+Behind the scenes, poke-tui runs a local [MCP](https://modelcontextprotocol.io) server and tunnels it to Poke's cloud using `PokeTunnel`. This gives the agent a `reply_to_terminal` tool it can call to send responses directly back to your terminal.
 
 ```mermaid
 flowchart TD
@@ -33,18 +33,18 @@ flowchart TD
 
 1. Go to [poke.com/kitchen/api-keys](https://poke.com/kitchen/api-keys)
 2. Generate a new key (starts with `pk_`)
-3. Run `npx pui` and paste it when prompted
+3. Run `npx poke-tui` and paste it when prompted
 
-The key is saved to `~/.config/pui/config.json` for future sessions.
+The key is saved to `~/.config/poke-tui/config.json` for future sessions.
 
 ### Option 2: Environment variable
 
 ```bash
 export POKE_API_KEY=pk_your_key_here
-npx pui
+npx poke-tui
 ```
 
-pui checks credentials in this order: `POKE_API_KEY` env var → `~/.config/pui/config.json`.
+poke-tui checks credentials in this order: `POKE_API_KEY` env var → `~/.config/poke-tui/config.json`.
 
 ## Commands
 
@@ -81,7 +81,7 @@ Create automated triggers that fire your Poke agent with data:
 
 ## How the MCP tunnel works
 
-pui starts a lightweight HTTP server locally that implements the [Model Context Protocol](https://modelcontextprotocol.io) (MCP). It exposes two tools:
+poke-tui starts a lightweight HTTP server locally that implements the [Model Context Protocol](https://modelcontextprotocol.io) (MCP). It exposes two tools:
 
 - **`reply_to_terminal`** — the agent calls this to send its response to your terminal
 - **`notify_terminal`** — for short notifications
@@ -90,7 +90,7 @@ The server is tunneled to Poke's cloud via `PokeTunnel` (WebSocket-based). When 
 
 ## Configuration
 
-Config is stored at `~/.config/pui/config.json`:
+Config is stored at `~/.config/poke-tui/config.json`:
 
 ```json
 {
@@ -98,13 +98,13 @@ Config is stored at `~/.config/pui/config.json`:
 }
 ```
 
-To reset, delete the file and run `npx pui` again.
+To reset, delete the file and run `npx poke-tui` again.
 
 ## Project structure
 
 ```
 bin/
-  pui.js            Entry point (npx bin), onboarding flow
+  poke-tui.js       Entry point (npx bin), onboarding flow
 src/
   app.js            Wires MCP server, Poke client, and TUI together
   mcp-server.js     Local MCP server (raw JSON-RPC over HTTP)

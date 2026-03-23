@@ -4,7 +4,7 @@
   "description": "Chat with your Poke AI assistant from the terminal",
   "type": "module",
   "bin": {
-    "pui": "./bin/pui.js"
+    "poke-tui": "./bin/poke-tui.js"
   },
   "scripts": {
     "start": "node src/app.js"

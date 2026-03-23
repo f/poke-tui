@@ -1,6 +1,6 @@
 import { createMcpServer, startMcpHttpServer, mcpEvents } from "./mcp-server.js";
 import { PokeClient } from "./poke-client.js";
-import { TUI } from "./tui.js";
+import { startTUI, tuiEvents } from "./tui.js";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -9,11 +9,10 @@ function resolveToken() {
   if (process.env.POKE_API_KEY) return process.env.POKE_API_KEY;
 
   const configDir = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
-  const credPath = join(configDir, "poke", "credentials.json");
 
   try {
-    const creds = JSON.parse(readFileSync(credPath, "utf-8"));
-    if (creds.token) return creds.token;
+    const puiConfig = JSON.parse(readFileSync(join(configDir, "pui", "config.json"), "utf-8"));
+    if (puiConfig.apiKey) return puiConfig.apiKey;
   } catch {}
 
   return null;
@@ -22,99 +21,90 @@ function resolveToken() {
 const POKE_API_KEY = resolveToken();
 
 if (!POKE_API_KEY) {
-  console.error(
-    "No Poke credentials found.\n\n" +
-      "Either:\n" +
-      "  1. Run: npx poke login\n" +
-      "  2. Or set: export POKE_API_KEY=pk_your_key_here\n\n" +
-      "Get an API key at https://poke.com/kitchen/api-keys"
-  );
+  console.error("No credentials found. Run: npx pui");
   process.exit(1);
 }
 
-const tui = new TUI();
+const inkInstance = startTUI();
+
 const client = new PokeClient({
   apiKey: POKE_API_KEY,
   onEvent: (type, data) => {
     switch (type) {
       case "tunnel-connected":
-        tui.setConnected(true);
+        tuiEvents.emit("connected", true);
         break;
       case "tunnel-disconnected":
-        tui.setConnected(false);
-        tui.addSystem("Connection lost. Reconnecting…");
+        tuiEvents.emit("connected", false);
+        tuiEvents.emit("system", "Connection lost. Reconnecting…");
         break;
       case "tunnel-error":
-        tui.addError(`Connection error: ${data}`);
-        break;
-      case "tools-synced":
+        tuiEvents.emit("error", `Connection error: ${data}`);
         break;
       case "error":
-        tui.addError(data);
+        tuiEvents.emit("error", data);
         break;
     }
   },
 });
 
 mcpEvents.on("reply", (text) => {
-  tui.addMessage("poke", text);
+  tuiEvents.emit("message", "poke", text);
 });
 
 mcpEvents.on("notification", (message) => {
-  tui.addSystem(message);
+  tuiEvents.emit("system", message);
 });
 
-async function handleInput(text) {
+tuiEvents.on("user-input", async (text) => {
   if (text.startsWith("/")) {
     await handleCommand(text);
     return;
   }
 
-  tui.addMessage("you", text);
+  tuiEvents.emit("message", "you", text);
 
   try {
     const res = await client.sendMessage(text);
     if (res.success === false) {
-      tui.addError(res.message || "Failed to send message.");
+      tuiEvents.emit("error", res.message || "Failed to send message.");
     }
   } catch (err) {
-    tui.addError(err.message);
+    tuiEvents.emit("error", err.message);
   }
-}
+});
+
+tuiEvents.on("user-quit", async () => {
+  try { await client.stop(); } catch {}
+  process.exit(0);
+});
 
 async function handleCommand(text) {
   const parts = text.slice(1).split(" ");
   const cmd = parts[0]?.toLowerCase();
 
   if (cmd === "help") {
-    tui.addSystem("Commands:");
-    tui.addSystem("  /webhook create <when> | <do what>");
-    tui.addSystem("  /webhook fire <#> {\"data\":\"here\"}");
-    tui.addSystem("  /webhooks");
-    tui.addSystem("  /status");
-    tui.addSystem("  /clear");
-    return;
-  }
-
-  if (cmd === "clear") {
-    tui.chatLog.setContent("");
-    tui.screen.render();
+    tuiEvents.emit("system", "Commands:");
+    tuiEvents.emit("system", "  /webhook create <when> | <do what>");
+    tuiEvents.emit("system", '  /webhook fire <#> {"data":"here"}');
+    tuiEvents.emit("system", "  /webhooks");
+    tuiEvents.emit("system", "  /status");
     return;
   }
 
   if (cmd === "status") {
-    tui.addSystem(tui.connected ? "Connected and ready." : "Connecting…");
-    tui.addSystem(`Webhooks: ${client.webhooks.length}`);
+    tuiEvents.emit("system", client.tunnelInfo ? "Connected and ready." : "Connecting…");
+    tuiEvents.emit("system", `Webhooks: ${client.webhooks.length}`);
     return;
   }
 
   if (cmd === "webhooks") {
     if (client.webhooks.length === 0) {
-      tui.addSystem("No webhooks yet. Create one with /webhook create");
+      tuiEvents.emit("system", "No webhooks yet. Create one with /webhook create");
       return;
     }
     client.webhooks.forEach((wh, i) => {
-      tui.addSystem(`  #${i}  ${wh.triggerId}`);
+      tuiEvents.emit("system", `  #${i}  ${wh.triggerId}`);
     });
     return;
   }
@@ -126,17 +116,16 @@ async function handleCommand(text) {
       const rest = parts.slice(2).join(" ");
       const pipeIdx = rest.indexOf("|");
       if (pipeIdx === -1) {
-        tui.addError("Usage: /webhook create <when> | <do what>");
+        tuiEvents.emit("error", "Usage: /webhook create <when> | <do what>");
         return;
       }
       const condition = rest.slice(0, pipeIdx).trim();
       const action = rest.slice(pipeIdx + 1).trim();
-
       try {
-        const wh = await client.createWebhook({ condition, action });
-        tui.addSystem(`Webhook #${client.webhooks.length - 1} created.`);
+        await client.createWebhook({ condition, action });
+        tuiEvents.emit("system", `Webhook #${client.webhooks.length - 1} created.`);
       } catch (err) {
-        tui.addError(err.message);
+        tuiEvents.emit("error", err.message);
       }
       return;
     }
@@ -145,36 +134,59 @@ async function handleCommand(text) {
       const index = parseInt(parts[2], 10);
       const jsonStr = parts.slice(3).join(" ");
       if (isNaN(index) || !jsonStr) {
-        tui.addError("Usage: /webhook fire <#> {\"data\":\"here\"}");
+        tuiEvents.emit("error", 'Usage: /webhook fire <#> {"data":"here"}');
         return;
       }
       let data;
       try {
         data = JSON.parse(jsonStr);
       } catch {
-        tui.addError("Invalid JSON.");
+        tuiEvents.emit("error", "Invalid JSON.");
         return;
       }
       try {
         await client.fireWebhook(index, data);
-        tui.addSystem("Webhook fired.");
+        tuiEvents.emit("system", "Webhook fired.");
       } catch (err) {
-        tui.addError(err.message);
+        tuiEvents.emit("error", err.message);
       }
       return;
     }
 
-    tui.addError("Try: /webhook create or /webhook fire");
+    tuiEvents.emit("error", "Try: /webhook create or /webhook fire");
     return;
   }
 
-  tui.addError(`Unknown command. Type /help`);
+  tuiEvents.emit("error", "Unknown command. Type /help");
+}
+
+async function fetchUserName() {
+  const base = process.env.POKE_API ?? "https://poke.com/api/v1";
+
+  // Try login token first (from `poke login`), then API key
+  const { getToken } = await import("poke");
+  const tokens = [getToken(), POKE_API_KEY].filter(Boolean);
+
+  for (const token of tokens) {
+    try {
+      const res = await fetch(`${base}/user/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const full = data.name || data.email || data.id || null;
+        if (!full) return null;
+        return full.split(/[\s@]/)[0];
+      }
+    } catch {}
+  }
+  return null;
 }
 
 async function main() {
-  tui.init();
-  tui.onSend = handleInput;
-  tui.onQuit = shutdown;
+  fetchUserName().then((name) => {
+    if (name) tuiEvents.emit("user-name", name);
+  });
 
   try {
     createMcpServer();
@@ -182,24 +194,9 @@ async function main() {
     await client.init(port);
     await client.startTunnel(port);
   } catch (err) {
-    tui.addError(err.message);
-    tui.addSystem("Replies will arrive on your phone instead.");
+    tuiEvents.emit("error", err.message);
+    tuiEvents.emit("system", "Replies will arrive on your phone instead.");
   }
 }
-
-async function shutdown() {
-  try { await client.stop(); } catch {}
-  tui.destroy();
-  process.exit(0);
-}
-
-process.on("uncaughtException", (err) => {
-  tui?.addError?.(err.message) ?? console.error(err);
-});
-
-process.on("unhandledRejection", (err) => {
-  const msg = err instanceof Error ? err.message : String(err);
-  tui?.addError?.(msg) ?? console.error(err);
-});
 
 main();

@@ -1,18 +1,32 @@
 {
-  "name": "poke-test",
-  "version": "1.0.0",
-  "description": "",
+  "name": "pui",
+  "version": "0.1.0",
+  "description": "Chat with your Poke AI assistant from the terminal",
   "type": "module",
-  "main": "index.js",
+  "bin": {
+    "pui": "./bin/pui.js"
+  },
   "scripts": {
     "start": "node src/app.js"
   },
-  "keywords": [],
+  "keywords": [
+    "poke",
+    "tui",
+    "terminal",
+    "ai",
+    "chat",
+    "cli",
+    "mcp"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "blessed": "^0.1.81",
-    "poke": "^0.4.2"
+    "ink": "^6.8.0",
+    "ink-text-input": "^6.0.0",
+    "poke": "^0.4.2",
+    "react": "^19.2.4"
   }
 }

@@ -1,161 +1,173 @@
-import blessed from "blessed";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { render, Box, Text, useInput, useApp } from "ink";
+import TextInput from "ink-text-input";
+import { EventEmitter } from "node:events";
 
-export class TUI {
-  constructor() {
-    this.screen = null;
-    this.chatLog = null;
-    this.input = null;
-    this.statusBar = null;
-    this.onSend = null;
-    this.connected = false;
-    this.waitingForReply = false;
+export const tuiEvents = new EventEmitter();
+
+const h = React.createElement;
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+const THINKING_WORDS = [
+  "Poking around", "Checking my notes", "Asking the palm tree",
+  "Surfing the waves", "On it", "Digging in", "Cooking up a reply",
+  "Reaching out to the universe", "Looking into it", "Brewing thoughts",
+  "Catching a vibe", "Consulting the coconuts", "Adventuring",
+  "Figuring it out", "Putting it together", "Almost there",
+  "Exploring options", "Connecting the dots", "Reading the vibes",
+  "One sec", "Hang tight", "Working on it", "Crunching it",
+  "Fetching an answer", "Assembling words", "Crafting a reply",
+  "Poking the clouds", "Channeling island energy", "Sipping and thinking",
+  "Vibing with it", "Letting it marinate", "Piecing it together",
+];
+
+function pickWord() {
+  return THINKING_WORDS[Math.floor(Math.random() * THINKING_WORDS.length)];
+}
+
+function Banner({ userName }) {
+  return h(Box, { flexDirection: "column", paddingX: 1, marginBottom: 1 },
+    h(Text, null),
+    h(Text, { bold: true, color: "#7B68EE" }, "  🌴 Poke"),
+    h(Text, { dimColor: true }, "  your AI assistant in the terminal"),
+    h(Text, { dimColor: true }, "  by Interaction Company of California"),
+    h(Text, null),
+    userName
+      ? h(Text, null, `  Welcome back, ${userName}!`)
+      : null,
+    h(Text, { dimColor: true }, "  Type a message to chat · /help for commands"),
+  );
+}
+
+function ThinkingIndicator() {
+  const [frame, setFrame] = useState(0);
+  const [word, setWord] = useState(pickWord);
+
+  useEffect(() => {
+    const spin = setInterval(() => setFrame((f) => (f + 1) % SPINNER.length), 80);
+    const swap = setInterval(() => setWord(pickWord()), 3000);
+    return () => { clearInterval(spin); clearInterval(swap); };
+  }, []);
+
+  return h(Box, { paddingX: 1 },
+    h(Text, { color: "#7B68EE" }, `${SPINNER[frame]} `),
+    h(Text, { dimColor: true }, `${word}…`),
+  );
+}
+
+function Message({ role, text }) {
+  if (role === "you") {
+    return h(Box, { paddingX: 1, marginTop: 1 },
+      h(Text, { bold: true }, "❯ "),
+      h(Text, null, text),
+    );
   }
-
-  init() {
-    this.screen = blessed.screen({
-      smartCSR: true,
-      title: "Poke",
-      fullUnicode: true,
-    });
-
-    this.chatLog = blessed.log({
-      parent: this.screen,
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "100%-4",
-      scrollable: true,
-      alwaysScroll: true,
-      scrollbar: { ch: " " },
-      mouse: true,
-      keys: true,
-      vi: true,
-      tags: true,
-      padding: { left: 1, right: 1 },
-    });
-
-    const inputWrapper = blessed.box({
-      parent: this.screen,
-      bottom: 1,
-      left: 0,
-      width: "100%",
-      height: 3,
-      style: { bg: "black" },
-    });
-
-    blessed.box({
-      parent: inputWrapper,
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: 1,
-      content: "─".repeat(200),
-      style: { fg: "gray" },
-    });
-
-    blessed.text({
-      parent: inputWrapper,
-      left: 1,
-      top: 1,
-      content: ">",
-      style: { fg: "white" },
-    });
-
-    this.input = blessed.textbox({
-      parent: inputWrapper,
-      top: 1,
-      left: 3,
-      right: 1,
-      height: 1,
-      inputOnFocus: true,
-      keys: true,
-      mouse: true,
-    });
-
-    this.statusBar = blessed.box({
-      parent: this.screen,
-      bottom: 0,
-      left: 0,
-      width: "100%",
-      height: 1,
-      tags: true,
-      style: { fg: "gray" },
-      padding: { left: 1 },
-    });
-
-    this.updateStatus();
-
-    this.input.on("submit", (value) => {
-      if (value.trim()) this.onSend?.(value.trim());
-      this.input.clearValue();
-      this.input.focus();
-      this.screen.render();
-    });
-
-    this.input.on("cancel", () => {
-      this.input.clearValue();
-      this.screen.render();
-    });
-
-    this.screen.key(["escape"], () => {
-      this.input.clearValue();
-      this.input.focus();
-      this.screen.render();
-    });
-
-    this.input.key(["C-c"], () => this.onQuit?.());
-    this.screen.key(["C-c"], () => this.onQuit?.());
-
-    this.input.focus();
-    this.screen.render();
+  if (role === "poke") {
+    return h(Box, { paddingX: 1, flexDirection: "column" },
+      h(Text, { color: "#7B68EE", bold: true }, "poke"),
+      h(Box, { paddingLeft: 2 }, h(Text, null, text)),
+    );
   }
+  if (role === "error") {
+    return h(Box, { paddingX: 1 },
+      h(Text, { color: "red" }, `✗ ${text}`),
+    );
+  }
+  return h(Box, { paddingX: 1 }, h(Text, { dimColor: true }, text));
+}
 
-  addMessage(role, text) {
-    const wrapped = this.wrap(text);
-    if (role === "you") {
-      this.chatLog.log(`you: ${wrapped}`);
-      this.waitingForReply = true;
-      this.updateStatus();
-    } else if (role === "poke") {
-      this.chatLog.log(`poke: ${wrapped}`);
-      this.waitingForReply = false;
-      this.updateStatus();
+function App() {
+  const { exit } = useApp();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [thinking, setThinking] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [userName, setUserName] = useState(null);
+  const idRef = useRef(0);
+
+  const nextId = useCallback(() => `msg-${++idRef.current}`, []);
+
+  const push = useCallback((role, text) => {
+    setMessages((prev) => [...prev.slice(-100), { role, text, id: nextId() }]);
+  }, [nextId]);
+
+  useEffect(() => {
+    const onMsg = (role, text) => {
+      push(role, text);
+      if (role === "you") setThinking(true);
+      if (role === "poke" || role === "error") setThinking(false);
+    };
+    const onSys = (text) => push("system", text);
+    const onErr = (text) => { push("error", text); setThinking(false); };
+    const onConn = (v) => setConnected(v);
+    const onThink = (v) => setThinking(v);
+    const onQuit = () => exit();
+    const onUser = (name) => setUserName(name);
+
+    tuiEvents.on("message", onMsg);
+    tuiEvents.on("system", onSys);
+    tuiEvents.on("error", onErr);
+    tuiEvents.on("connected", onConn);
+    tuiEvents.on("thinking", onThink);
+    tuiEvents.on("quit", onQuit);
+    tuiEvents.on("user-name", onUser);
+
+    return () => {
+      tuiEvents.off("message", onMsg);
+      tuiEvents.off("system", onSys);
+      tuiEvents.off("error", onErr);
+      tuiEvents.off("connected", onConn);
+      tuiEvents.off("thinking", onThink);
+      tuiEvents.off("quit", onQuit);
+      tuiEvents.off("user-name", onUser);
+    };
+  }, [push, exit]);
+
+  useInput((ch, key) => {
+    if (key.ctrl && ch === "c") {
+      tuiEvents.emit("user-quit");
+      exit();
     }
-    this.screen.render();
-  }
+  });
 
-  addSystem(text) {
-    this.chatLog.log(`{gray-fg}${this.esc(text)}{/}`);
-    this.screen.render();
-  }
+  const handleSubmit = (value) => {
+    if (!value.trim()) return;
+    setInput("");
+    tuiEvents.emit("user-input", value.trim());
+  };
 
-  addError(text) {
-    this.chatLog.log(`error: ${this.esc(text)}`);
-    this.screen.render();
-  }
+  const visible = messages.slice(-50);
+  const cols = process.stdout.columns || 80;
 
-  setConnected(value) {
-    this.connected = value;
-    this.updateStatus();
-  }
+  return h(Box, { flexDirection: "column", width: "100%" },
 
-  updateStatus() {
-    if (!this.statusBar) return;
-    const state = this.connected ? "connected" : "connecting...";
-    const thinking = this.waitingForReply ? "  |  thinking..." : "";
-    this.statusBar.setContent(`{gray-fg}${state}${thinking}  |  ctrl-c quit  |  /help{/}`);
-    this.screen?.render();
-  }
+    h(Banner, { userName }),
 
-  wrap(text) {
-    return String(text).replace(/\{/g, "\\{").replace(/\}/g, "\\}");
-  }
+    h(Box, { flexDirection: "column", flexGrow: 1 },
+      ...visible.map((msg) =>
+        h(Message, { key: msg.id, role: msg.role, text: msg.text })
+      ),
+      thinking && h(ThinkingIndicator, { key: "thinking" }),
+    ),
 
-  esc(text) {
-    return String(text).replace(/\{/g, "\\{").replace(/\}/g, "\\}");
-  }
+    h(Box, { paddingX: 1 },
+      h(Text, { dimColor: true }, "─".repeat(cols - 2)),
+    ),
+    h(Box, { paddingX: 1 },
+      h(Text, { color: "#7B68EE", bold: true }, "❯ "),
+      h(TextInput, { value: input, onChange: setInput, onSubmit: handleSubmit, placeholder: "Ask Poke anything…" }),
+    ),
+    h(Box, { paddingX: 1, justifyContent: "space-between" },
+      h(Text, { dimColor: true },
+        h(Text, { color: connected ? "green" : "yellow" }, connected ? "● " : "○ "),
+        connected ? "connected" : "connecting",
+      ),
+      h(Text, { dimColor: true }, "esc interrupt · /help · ctrl-c quit"),
+    ),
+  );
+}
 
-  destroy() {
-    this.screen?.destroy();
-  }
+export function startTUI() {
+  process.stdout.write("\x1B[2J\x1B[3J\x1B[H");
+  return render(h(App));
 }

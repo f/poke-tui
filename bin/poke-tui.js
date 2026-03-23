@@ -47,18 +47,17 @@ async function onboarding() {
   console.log("  To get started, you need a Poke API key.");
   console.log();
   console.log("  1. Go to https://poke.com/kitchen/api-keys");
-  console.log("  2. Generate a new key (starts with pk_)");
+  console.log("  2. Generate a new key");
   console.log("  3. Paste it below");
   console.log();
 
   const key = await ask("  API key: ");
 
-  if (!key || !key.startsWith("pk_")) {
+  if (!key) {
     console.log();
-    console.log("  That doesn't look like a valid API key (should start with pk_).");
-    console.log("  You can also set it later:");
+    console.log("  No key provided. You can set it later:");
     console.log();
-    console.log("    export POKE_API_KEY=pk_your_key_here");
+    console.log("    export POKE_API_KEY=your_key_here");
     console.log();
     process.exit(1);
   }

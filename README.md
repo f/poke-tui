@@ -32,7 +32,7 @@ flowchart TD
 ### Option 1: API key (recommended)
 
 1. Go to [poke.com/kitchen/api-keys](https://poke.com/kitchen/api-keys)
-2. Generate a new key (starts with `pk_`)
+2. Generate a new key
 3. Run `npx poke-tui` and paste it when prompted
 
 The key is saved to `~/.config/poke-tui/config.json` for future sessions.
@@ -40,7 +40,7 @@ The key is saved to `~/.config/poke-tui/config.json` for future sessions.
 ### Option 2: Environment variable
 
 ```bash
-export POKE_API_KEY=pk_your_key_here
+export POKE_API_KEY=your_key_here
 npx poke-tui
 ```
 
@@ -94,7 +94,7 @@ Config is stored at `~/.config/poke-tui/config.json`:
 
 ```json
 {
-  "apiKey": "pk_your_key_here"
+  "apiKey": "your_key_here"
 }
 ```
 
